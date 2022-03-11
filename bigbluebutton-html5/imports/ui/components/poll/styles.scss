@@ -168,6 +168,11 @@
     color: var(--color-danger);
     font-size: var(--font-size-small);
 }
+.warning{
+    color: var(--color-warning);
+    font-size: var(--font-size-small);
+}
+.hidden { display:none; }
 
 .inputError,
 .errorSpacer {
@@ -378,6 +383,13 @@
   justify-content: space-between;
   margin-top: 0.7rem;
   margin-bottom: 0.7rem;
+}
+
+.autoOptRow{
+    display: flex;
+    flex-flow: wrap;
+    flex-grow: 1;
+    justify-content: space-between;
 }
 
 .label {
