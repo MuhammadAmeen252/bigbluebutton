@@ -1,8 +1,8 @@
-import Users from '/imports/ui/local-collections/users-collection/users';
+import Users from '/imports/api/users';
 import VoiceUsers from '/imports/api/voice-users';
 import GroupChat from '/imports/api/group-chat';
-import Breakouts from '/imports/ui/local-collections/breakouts-collection/breakouts';
-import Meetings from '/imports/ui/local-collections/meetings-collection/meetings';
+import Breakouts from '/imports/api/breakouts';
+import Meetings from '/imports/api/meetings';
 import Auth from '/imports/ui/services/auth';
 import Storage from '/imports/ui/services/storage/session';
 import { EMOJI_STATUSES } from '/imports/utils/statuses';
@@ -30,9 +30,9 @@ const STARTED_CHAT_LIST_KEY = 'startedChatList';
 
 const CUSTOM_LOGO_URL_KEY = 'CustomLogoUrl';
 
-export const setCustomLogoUrl = path => Storage.setItem(CUSTOM_LOGO_URL_KEY, path);
+export const setCustomLogoUrl = (path) => Storage.setItem(CUSTOM_LOGO_URL_KEY, path);
 
-export const setModeratorOnlyMessage = msg => Storage.setItem('ModeratorOnlyMessage', msg);
+export const setModeratorOnlyMessage = (msg) => Storage.setItem('ModeratorOnlyMessage', msg);
 
 const getCustomLogoUrl = () => Storage.getItem(CUSTOM_LOGO_URL_KEY);
 
@@ -212,6 +212,31 @@ const getUsers = () => {
   return addIsSharingWebcam(addWhiteboardAccess(users)).sort(sortUsers);
 };
 
+const formatUsers = (contextUsers, videoUsers, whiteboardUsers) => {
+  let users = contextUsers.filter((user) => !user.loggedOut);
+
+  const currentUser = Users.findOne({ userId: Auth.userID }, { fields: { role: 1, locked: 1 } });
+  if (currentUser && currentUser.role === ROLE_VIEWER && currentUser.locked) {
+    const meeting = Meetings.findOne({ meetingId: Auth.meetingID },
+      { fields: { 'lockSettingsProps.hideUserList': 1 } });
+    if (meeting && meeting.lockSettingsProps && meeting.lockSettingsProps.hideUserList) {
+      const moderatorOrCurrentUser = (u) => u.role === ROLE_MODERATOR || u.userId === Auth.userID;
+      users = users.filter(moderatorOrCurrentUser);
+    }
+  }
+
+  return users.map((user) => {
+    const isSharingWebcam = videoUsers?.includes(user.userId);
+    const whiteboardAccess = whiteboardUsers?.includes(user.userId);
+
+    return {
+      ...user,
+      isSharingWebcam,
+      whiteboardAccess,
+    };
+  }).sort(sortUsers);
+};
+
 const getUserCount = () => Users.find({ meetingId: Auth.meetingID }).count();
 
 const hasBreakoutRoom = () => Breakouts.find({ parentMeetingId: Auth.meetingID },
@@ -304,13 +329,14 @@ const isMeetingLocked = (id) => {
   let isLocked = false;
 
   if (meeting.lockSettingsProps !== undefined) {
-    const {lockSettingsProps:lockSettings, usersProp} = meeting;
+    const { lockSettingsProps: lockSettings, usersProp } = meeting;
 
     if (lockSettings.disableCam
       || lockSettings.disableMic
       || lockSettings.disablePrivateChat
       || lockSettings.disablePublicChat
-      || lockSettings.disableNote
+      || lockSettings.disableNotes
+      || lockSettings.hideUserList
       || usersProp.webcamsOnlyForModerator) {
       isLocked = true;
     }
@@ -325,6 +351,7 @@ const getUsersProp = () => {
     {
       fields: {
         'usersProp.allowModsToUnmuteUsers': 1,
+        'usersProp.allowModsToEjectCameras': 1,
         'usersProp.authenticatedGuest': 1,
       },
     },
@@ -334,6 +361,7 @@ const getUsersProp = () => {
 
   return {
     allowModsToUnmuteUsers: false,
+    allowModsToEjectCameras: false,
     authenticatedGuest: false,
   };
 };
@@ -405,6 +433,10 @@ const getAvailableActions = (
   const allowedToChangeWhiteboardAccess = amIPresenter
     && !amISubjectUser;
 
+  const allowedToEjectCameras = amIModerator
+    && !amISubjectUser
+    && usersProp.allowModsToEjectCameras;
+
   return {
     allowedToChatPrivately,
     allowedToMuteAudio,
@@ -417,6 +449,7 @@ const getAvailableActions = (
     allowedToChangeStatus,
     allowedToChangeUserLockStatus,
     allowedToChangeWhiteboardAccess,
+    allowedToEjectCameras,
   };
 };
 
@@ -439,7 +472,7 @@ const assignPresenter = (userId) => { makeCall('assignPresenter', userId); };
 
 const removeUser = (userId, banUser) => {
   if (isVoiceOnlyUser(userId)) {
-    makeCall('ejectUserFromVoice', userId);
+    makeCall('ejectUserFromVoice', userId, banUser);
   } else {
     makeCall('removeUser', userId, banUser);
   }
@@ -455,6 +488,10 @@ const toggleVoice = (userId) => {
       extraInfo: { logType: 'moderator_action', userId },
     }, 'moderator muted user microphone');
   }
+};
+
+const ejectUserCameras = (userId) => {
+  makeCall('ejectUserCameras', userId);
 };
 
 const getEmoji = () => {
@@ -595,8 +632,6 @@ const isUserPresenter = (userId) => {
   return user ? user.presenter : false;
 };
 
-const amIPresenter = () => isUserPresenter(Auth.userID);
-
 export const getUserNamesLink = (docTitle, fnSortedLabel, lnSortedLabel) => {
   const mimeType = 'text/plain';
   const userNamesObj = getUsers()
@@ -649,6 +684,7 @@ export default {
   muteAllExceptPresenter,
   changeRole,
   getUsers,
+  formatUsers,
   getActiveChats,
   getAvailableActions,
   curatedVoiceUser,
@@ -666,8 +702,8 @@ export default {
   requestUserInformation,
   focusFirstDropDownItem,
   isUserPresenter,
-  amIPresenter,
   getUsersProp,
   getUserCount,
   sortUsersByCurrent,
+  ejectUserCameras,
 };

@@ -1,6 +1,6 @@
 import Users from '/imports/api/users';
 import Auth from '/imports/ui/services/auth';
-import Meetings from '../../../api/meetings';
+import Meetings from '/imports/api/meetings';
 
 const ROLE_MODERATOR = Meteor.settings.public.user.role_moderator;
 
@@ -22,21 +22,35 @@ const isModerator = () => {
 
 const getLearningDashboardAccessToken = () => ((
   Meetings.findOne(
-    { meetingId: Auth.meetingID },
+    { meetingId: Auth.meetingID, learningDashboardAccessToken: { $exists: true } },
     {
-      fields: { 'password.learningDashboardAccessToken': 1 },
+      fields: { learningDashboardAccessToken: 1 },
     },
-  ) || {}).password || {}).learningDashboardAccessToken || null;
+  ) || {}).learningDashboardAccessToken || null);
+
+const setLearningDashboardCookie = () => {
+  const learningDashboardAccessToken = getLearningDashboardAccessToken();
+  if (learningDashboardAccessToken !== null) {
+    const lifetime = new Date();
+    lifetime.setTime(lifetime.getTime() + (3600000)); // 1h (extends 7d when open Dashboard)
+    document.cookie = `ld-${Auth.meetingID}=${getLearningDashboardAccessToken()}; expires=${lifetime.toGMTString()}; path=/`;
+    return true;
+  }
+  return false;
+};
 
 const openLearningDashboardUrl = (lang) => {
-  const cookieExpiresDate = new Date();
-  cookieExpiresDate.setTime(cookieExpiresDate.getTime() + (3600000 * 24 * 30)); // keep cookie 30d
-  document.cookie = `learningDashboardAccessToken-${Auth.meetingID}=${getLearningDashboardAccessToken()}; expires=${cookieExpiresDate.toGMTString()}; path=/`;
-  window.open(`/learning-dashboard/?meeting=${Auth.meetingID}&lang=${lang}`, '_blank');
+  const APP = Meteor.settings.public.app;
+  if (getLearningDashboardAccessToken() && setLearningDashboardCookie()) {
+    window.open(`${APP.learningDashboardBase}/?meeting=${Auth.meetingID}&lang=${lang}`, '_blank');
+  } else {
+    window.open(`${APP.learningDashboardBase}/?meeting=${Auth.meetingID}&sessionToken=${Auth.sessionToken}&lang=${lang}`, '_blank');
+  }
 };
 
 export default {
   isModerator,
   getLearningDashboardAccessToken,
+  setLearningDashboardCookie,
   openLearningDashboardUrl,
 };

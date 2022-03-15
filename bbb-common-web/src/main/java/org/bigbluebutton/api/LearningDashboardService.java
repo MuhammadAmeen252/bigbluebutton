@@ -23,10 +23,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.Calendar;
 
 public class LearningDashboardService {
     private static Logger log = LoggerFactory.getLogger(LearningDashboardService.class);
     private static String learningDashboardFilesDir = "/var/bigbluebutton/learning-dashboard";
+
+    public File getJsonDataFile(String meetingId, String learningDashboardAccessToken) {
+        File baseDir = new File(this.getDestinationBaseDirectoryName(meetingId,learningDashboardAccessToken));
+        if (!baseDir.exists()) baseDir.mkdirs();
+
+        File jsonFile = new File(baseDir.getAbsolutePath() + File.separatorChar + "learning_dashboard_data.json");
+        return jsonFile;
+    }
 
     public void writeJsonDataFile(String meetingId, String learningDashboardAccessToken, String activityJson) {
 
@@ -36,10 +45,7 @@ public class LearningDashboardService {
                 return;
             }
 
-            File baseDir = new File(this.getDestinationBaseDirectoryName(meetingId,learningDashboardAccessToken));
-            if (!baseDir.exists()) baseDir.mkdirs();
-
-            File jsonFile = new File(baseDir.getAbsolutePath() + File.separatorChar + "learning_dashboard_data.json");
+            File jsonFile = this.getJsonDataFile(meetingId,learningDashboardAccessToken);
 
             FileOutputStream fileOutput = new FileOutputStream(jsonFile);
             fileOutput.write(activityJson.getBytes());
@@ -53,6 +59,10 @@ public class LearningDashboardService {
     }
 
     public void removeJsonDataFile(String meetingId, int cleanUpDelayMinutes) {
+
+        Calendar cleanUpDelayCalendar = Calendar.getInstance();
+        cleanUpDelayCalendar.add(Calendar.MINUTE, cleanUpDelayMinutes);
+
         //Delay `cleanUpDelayMinutes` then moderators can open the Dashboard before files has been removed
         new java.util.Timer().schedule(
                 new java.util.TimerTask() {
@@ -62,8 +72,7 @@ public class LearningDashboardService {
                         LearningDashboardService.deleteDirectory(ldMeetingFilesDir);
                         log.info("Learning Dashboard files removed for meeting {}.",meetingId);
                     }
-                },
-                (cleanUpDelayMinutes * 60) * 1000
+                }, cleanUpDelayCalendar.getTime()
         );
     }
 

@@ -1,4 +1,4 @@
-import { showModal } from '/imports/ui/components/modal/service';
+import { showModal } from '/imports/ui/components/common/modal/service';
 import Service from '../service';
 import Storage from '/imports/ui/services/storage/session';
 
@@ -73,7 +73,10 @@ export const leaveEchoTest = () => {
 };
 
 export const closeModal = () => {
-  if (!Service.isConnecting()) showModal(null);
+  if (Service.isConnecting()) {
+    Service.forceExitAudio();
+  }
+  showModal(null);
 };
 
 export default {

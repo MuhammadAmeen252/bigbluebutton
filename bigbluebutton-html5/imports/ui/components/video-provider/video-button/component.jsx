@@ -1,12 +1,14 @@
 import React, { memo } from 'react';
 import PropTypes from 'prop-types';
-import cx from 'classnames';
-import Button from '/imports/ui/components/button/component';
+import ButtonEmoji from '/imports/ui/components/common/button/button-emoji/ButtonEmoji';
 import VideoService from '../service';
 import { defineMessages, injectIntl } from 'react-intl';
-import { styles } from './styles';
+import Styled from './styles';
 import { validIOSVersion } from '/imports/ui/components/app/service';
+import deviceInfo from '/imports/utils/deviceInfo';
 import { debounce } from 'lodash';
+
+const ENABLE_WEBCAM_SELECTOR_BUTTON = Meteor.settings.public.app.enableWebcamSelectorButton;
 
 const intlMessages = defineMessages({
   joinVideo: {
@@ -17,6 +19,10 @@ const intlMessages = defineMessages({
     id: 'app.video.leaveVideo',
     description: 'Leave video button label',
   },
+  advancedVideo: {
+    id: 'app.video.advancedVideo',
+    description: 'Open advanced video label',
+  },
   videoLocked: {
     id: 'app.video.videoLocked',
     description: 'video disabled label',
@@ -24,6 +30,10 @@ const intlMessages = defineMessages({
   videoConnecting: {
     id: 'app.video.connecting',
     description: 'video connecting label',
+  },
+  camCapReached: {
+    id: 'app.video.meetingCamCapReached',
+    description: 'meeting camera cap label',
   },
   meteorDisconnected: {
     id: 'app.video.clientDisconnected',
@@ -41,6 +51,7 @@ const propTypes = {
   intl: PropTypes.object.isRequired,
   hasVideoStream: PropTypes.bool.isRequired,
   mountVideoPreview: PropTypes.func.isRequired,
+  forceMountVideoPreview: PropTypes.func.isRequired,
 };
 
 const JoinVideoButton = ({
@@ -48,8 +59,16 @@ const JoinVideoButton = ({
   hasVideoStream,
   disableReason,
   mountVideoPreview,
+  forceMountVideoPreview,
 }) => {
-  const exitVideo = () => hasVideoStream && !VideoService.isMultipleCamerasEnabled();
+  const { isMobile } = deviceInfo;
+  const shouldEnableWebcamSelectorButton = ENABLE_WEBCAM_SELECTOR_BUTTON
+    && hasVideoStream
+    && !isMobile;
+  const exitVideo = () => hasVideoStream
+    && !isMobile
+    && (!VideoService.isMultipleCamerasEnabled() || shouldEnableWebcamSelectorButton);
+  const isMobileSharingCamera = hasVideoStream && isMobile;
 
   const handleOnClick = debounce(() => {
     if (!validIOSVersion()) {
@@ -58,10 +77,17 @@ const JoinVideoButton = ({
 
     if (exitVideo()) {
       VideoService.exitVideo();
+    } else if (isMobileSharingCamera) {
+      forceMountVideoPreview();
     } else {
       mountVideoPreview();
     }
   }, JOIN_VIDEO_DELAY_MILLISECONDS);
+
+  const handleOpenAdvancedOptions = (e) => {
+    e.stopPropagation();
+    forceMountVideoPreview();
+  };
 
   let label = exitVideo()
     ? intl.formatMessage(intlMessages.leaveVideo)
@@ -69,20 +95,34 @@ const JoinVideoButton = ({
 
   if (disableReason) label = intl.formatMessage(intlMessages[disableReason]);
 
+  const renderEmojiButton = () => (
+    shouldEnableWebcamSelectorButton
+      && (
+      <ButtonEmoji
+        onClick={handleOpenAdvancedOptions}
+        emoji="device_list_selector"
+        hideLabel
+        label={intl.formatMessage(intlMessages.advancedVideo)}
+      />
+      )
+  );
+
   return (
-    <Button
-      label={label}
-      data-test={hasVideoStream ? 'leaveVideo' : 'joinVideo'}
-      className={cx(hasVideoStream || styles.btn)}
-      onClick={handleOnClick}
-      hideLabel
-      color={hasVideoStream ? 'primary' : 'default'}
-      icon={hasVideoStream ? 'video' : 'video_off'}
-      ghost={!hasVideoStream}
-      size="lg"
-      circle
-      disabled={!!disableReason}
-    />
+    <Styled.OffsetBottom>
+      <Styled.VideoButton
+        label={label}
+        data-test={hasVideoStream ? 'leaveVideo' : 'joinVideo'}
+        onClick={handleOnClick}
+        hideLabel
+        color={hasVideoStream ? 'primary' : 'default'}
+        icon={hasVideoStream ? 'video' : 'video_off'}
+        ghost={!hasVideoStream}
+        size="lg"
+        circle
+        disabled={!!disableReason}
+      />
+      {renderEmojiButton()}
+    </Styled.OffsetBottom>
   );
 };
 

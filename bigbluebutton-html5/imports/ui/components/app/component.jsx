@@ -11,8 +11,9 @@ import ActivityCheckContainer from '/imports/ui/components/activity-check/contai
 import UserInfoContainer from '/imports/ui/components/user-info/container';
 import BreakoutRoomInvitation from '/imports/ui/components/breakout-room/invitation/container';
 import { Meteor } from 'meteor/meteor';
-import ToastContainer from '../toast/container';
-import ModalContainer from '../modal/container';
+import ToastContainer from '/imports/ui/components/common/toast/container';
+import PadsSessionsContainer from '/imports/ui/components/pads/sessions/container';
+import ModalContainer from '/imports/ui/components/common/modal/container';
 import NotificationsBarContainer from '../notifications-bar/container';
 import AudioContainer from '../audio/container';
 import ChatAlertContainer from '../chat/alert/container';
@@ -23,13 +24,14 @@ import StatusNotifier from '/imports/ui/components/status-notifier/container';
 import MediaService from '/imports/ui/components/media/service';
 import ManyWebcamsNotifier from '/imports/ui/components/video-provider/many-users-notify/container';
 import UploaderContainer from '/imports/ui/components/presentation/presentation-uploader/container';
-import RandomUserSelectContainer from '/imports/ui/components/modal/random-user/container';
+import CaptionsSpeechContainer from '/imports/ui/components/captions/speech/container';
+import RandomUserSelectContainer from '/imports/ui/components/common/modal/random-user/container';
 import NewWebcamContainer from '../webcam/container';
 import PresentationAreaContainer from '../presentation/presentation-area/container';
 import ScreenshareContainer from '../screenshare/container';
 import ExternalVideoContainer from '../external-video-player/container';
-import { styles } from './styles';
-import { DEVICE_TYPE, ACTIONS } from '../layout/enums';
+import Styled from './styles';
+import { DEVICE_TYPE, ACTIONS, SMALL_VIEWPORT_BREAKPOINT } from '../layout/enums';
 import {
   isMobile, isTablet, isTabletPortrait, isTabletLandscape, isDesktop,
 } from '../layout/utils';
@@ -39,16 +41,18 @@ import SidebarNavigationContainer from '../sidebar-navigation/container';
 import SidebarContentContainer from '../sidebar-content/container';
 import { makeCall } from '/imports/ui/services/api';
 import ConnectionStatusService from '/imports/ui/components/connection-status/service';
-import { NAVBAR_HEIGHT, LARGE_NAVBAR_HEIGHT } from '/imports/ui/components/layout/defaultValues';
 import Settings from '/imports/ui/services/settings';
 import LayoutService from '/imports/ui/components/layout/service';
 import { registerTitleView } from '/imports/utils/dom-utils';
+import GlobalStyles from '/imports/ui/stylesheets/styled-components/globalStyles';
 
 const MOBILE_MEDIA = 'only screen and (max-width: 40em)';
 const APP_CONFIG = Meteor.settings.public.app;
 const DESKTOP_FONT_SIZE = APP_CONFIG.desktopFontSize;
 const MOBILE_FONT_SIZE = APP_CONFIG.mobileFontSize;
 const OVERRIDE_LOCALE = APP_CONFIG.defaultSettings.application.overrideLocale;
+const VIEWER = Meteor.settings.public.user.role_viewer;
+const MODERATOR = Meteor.settings.public.user.role_moderator;
 
 const intlMessages = defineMessages({
   userListLabel: {
@@ -99,26 +103,29 @@ const intlMessages = defineMessages({
     id: 'app.title.defaultViewLabel',
     description: 'view name apended to document title',
   },
+  promotedLabel: {
+    id: 'app.toast.promotedLabel',
+    description: 'notification message when promoted',
+  },
+  demotedLabel: {
+    id: 'app.toast.demotedLabel',
+    description: 'notification message when demoted',
+  },
 });
 
 const propTypes = {
-  navbar: PropTypes.element,
-  sidebar: PropTypes.element,
   actionsbar: PropTypes.element,
   captions: PropTypes.element,
   locale: PropTypes.string,
 };
 
 const defaultProps = {
-  navbar: null,
-  sidebar: null,
   actionsbar: null,
   captions: null,
   locale: OVERRIDE_LOCALE || navigator.language,
 };
 
-const LAYERED_BREAKPOINT = 640;
-const isLayeredView = window.matchMedia(`(max-width: ${LAYERED_BREAKPOINT}px)`);
+const isLayeredView = window.matchMedia(`(max-width: ${SMALL_VIEWPORT_BREAKPOINT}px)`);
 
 class App extends Component {
   static renderWebcamsContainer() {
@@ -149,6 +156,7 @@ class App extends Component {
       meetingLayout,
       settingsLayout,
       isRTL,
+      hidePresentation,
     } = this.props;
     const { browserName } = browserInfo;
     const { osName } = deviceInfo;
@@ -158,6 +166,11 @@ class App extends Component {
     layoutContextDispatch({
       type: ACTIONS.SET_IS_RTL,
       value: isRTL,
+    });
+
+    layoutContextDispatch({
+      type: ACTIONS.SET_PRESENTATION_IS_OPEN,
+      value: !hidePresentation,
     });
 
     MediaService.setSwapLayout(layoutContextDispatch);
@@ -186,6 +199,8 @@ class App extends Component {
 
     body.classList.add(`os-${osName.split(' ').shift().toLowerCase()}`);
 
+    body.classList.add(`lang-${locale.split('-')[0]}`);
+
     if (!validIOSVersion()) {
       notify(
         intl.formatMessage(intlMessages.iOSWarning), 'error', 'warning',
@@ -203,7 +218,7 @@ class App extends Component {
     window.ondragover = (e) => { e.preventDefault(); };
     window.ondrop = (e) => { e.preventDefault(); };
 
-    if (isMobile()) makeCall('setMobileUser');
+    if (deviceInfo.isMobile) makeCall('setMobileUser');
 
     ConnectionStatusService.startRoundTripTime();
 
@@ -215,17 +230,18 @@ class App extends Component {
       meetingMuted,
       notify,
       currentUserEmoji,
+      currentUserRole,
       intl,
       hasPublishedPoll,
-      randomlySelectedUser,
       mountModal,
       deviceType,
-      isPresenter,
       meetingLayout,
-      settingsLayout,
+      selectedLayout, // full layout name
+      settingsLayout, // shortened layout name (without Push)
       layoutType,
-      pushLayoutToEveryone,
+      pushLayoutToEveryone, // is layout pushed
       layoutContextDispatch,
+      mountRandomUserModal,
     } = this.props;
 
     if (meetingLayout !== prevProps.meetingLayout) {
@@ -238,7 +254,7 @@ class App extends Component {
       Settings.save();
     }
 
-    if (settingsLayout !== prevProps.settingsLayout
+    if (selectedLayout !== prevProps.selectedLayout
       || settingsLayout !== layoutType) {
       layoutContextDispatch({
         type: ACTIONS.SET_LAYOUT_TYPE,
@@ -250,7 +266,7 @@ class App extends Component {
       }
     }
 
-    if (!isPresenter && randomlySelectedUser.length > 0) mountModal(<RandomUserSelectContainer />);
+    if (mountRandomUserModal) mountModal(<RandomUserSelectContainer />);
 
     if (prevProps.currentUserEmoji.status !== currentUserEmoji.status) {
       const formattedEmojiStatus = intl.formatMessage({ id: `app.actionsBar.emojiMenu.${currentUserEmoji.status}Label` })
@@ -290,6 +306,16 @@ class App extends Component {
     if (!prevProps.hasPublishedPoll && hasPublishedPoll) {
       notify(
         intl.formatMessage(intlMessages.pollPublishedLabel), 'info', 'polling',
+      );
+    }
+    if (prevProps.currentUserRole === VIEWER && currentUserRole === MODERATOR) {
+      notify(
+        intl.formatMessage(intlMessages.promotedLabel), 'info', 'user',
+      );
+    }
+    if (prevProps.currentUserRole === MODERATOR && currentUserRole === VIEWER) {
+      notify(
+        intl.formatMessage(intlMessages.demotedLabel), 'info', 'user',
       );
     }
 
@@ -334,37 +360,6 @@ class App extends Component {
       && (isPhone || isLayeredView.matches);
   }
 
-  renderNavBar() {
-    const { navbar, isLargeFont } = this.props;
-
-    if (!navbar) return null;
-
-    const realNavbarHeight = isLargeFont ? LARGE_NAVBAR_HEIGHT : NAVBAR_HEIGHT;
-
-    return (
-      <header
-        className={styles.navbar}
-        style={{
-          height: realNavbarHeight,
-        }}
-      >
-        {navbar}
-      </header>
-    );
-  }
-
-  renderSidebar() {
-    const { sidebar } = this.props;
-
-    if (!sidebar) return null;
-
-    return (
-      <aside className={styles.sidebar}>
-        {sidebar}
-      </aside>
-    );
-  }
-
   renderCaptions() {
     const {
       captions,
@@ -374,8 +369,8 @@ class App extends Component {
     if (!captions) return null;
 
     return (
-      <div
-        className={styles.captionsWrapper}
+      <Styled.CaptionsWrapper
+        role="region"
         style={
           {
             position: 'absolute',
@@ -386,7 +381,7 @@ class App extends Component {
         }
       >
         {captions}
-      </div>
+      </Styled.CaptionsWrapper>
     );
   }
 
@@ -395,13 +390,14 @@ class App extends Component {
       actionsbar,
       intl,
       actionsBarStyle,
+      hideActionsBar,
     } = this.props;
 
-    if (!actionsbar) return null;
+    if (!actionsbar || hideActionsBar) return null;
 
     return (
-      <section
-        className={styles.actionsbar}
+      <Styled.ActionsBar
+        role="region"
         aria-label={intl.formatMessage(intlMessages.actionsBarLabel)}
         aria-hidden={this.shouldAriaHide()}
         style={
@@ -416,7 +412,7 @@ class App extends Component {
         }
       >
         {actionsbar}
-      </section>
+      </Styled.ActionsBar>
     );
   }
 
@@ -461,9 +457,9 @@ class App extends Component {
     return (
       <>
         <LayoutEngine layoutType={layoutType} />
-        <div
+        <GlobalStyles />
+        <Styled.Layout
           id="layout"
-          className={styles.layout}
           style={{
             width: '100%',
             height: '100%',
@@ -486,6 +482,7 @@ class App extends Component {
           }
           {this.renderCaptions()}
           <UploaderContainer />
+          <CaptionsSpeechContainer />
           <BreakoutRoomInvitation />
           <AudioContainer />
           <ToastContainer rtl />
@@ -502,10 +499,11 @@ class App extends Component {
           <ManyWebcamsNotifier />
           <PollingContainer />
           <ModalContainer />
+          <PadsSessionsContainer />
           {this.renderActionsBar()}
           {customStyleUrl ? <link rel="stylesheet" type="text/css" href={customStyleUrl} /> : null}
           {customStyle ? <link rel="stylesheet" type="text/css" href={`data:text/css;charset=UTF-8,${encodeURIComponent(customStyle)}`} /> : null}
-        </div>
+        </Styled.Layout>
       </>
     );
   }

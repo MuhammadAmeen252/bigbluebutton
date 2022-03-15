@@ -1,7 +1,7 @@
 import { withTracker } from 'meteor/react-meteor-data';
 import PropTypes from 'prop-types';
 import Auth from '/imports/ui/services/auth';
-import Meetings from '/imports/ui/local-collections/meetings-collection/meetings';
+import Meetings from '/imports/api/meetings';
 import ActionsBarService from '/imports/ui/components/actions-bar/service';
 import LearningDashboardService from '/imports/ui/components/learning-dashboard/service';
 import UserListService from '/imports/ui/components/user-list/service';
@@ -10,6 +10,7 @@ import logger from '/imports/startup/client/logger';
 import { defineMessages, injectIntl } from 'react-intl';
 import { notify } from '/imports/ui/services/notification';
 import UserOptions from './component';
+import { isLearningDashboardEnabled } from '/imports/ui/services/features';
 
 const propTypes = {
   users: PropTypes.arrayOf(Object).isRequired,
@@ -88,11 +89,10 @@ const UserOptionsContainer = withTracker((props) => {
     hasBreakoutRoom: UserListService.hasBreakoutRoom(),
     isBreakoutEnabled: ActionsBarService.isBreakoutEnabled(),
     isBreakoutRecordable: ActionsBarService.isBreakoutRecordable(),
-    users: ActionsBarService.users(),
     guestPolicy: WaitingUsersService.getGuestPolicy(),
     isMeteorConnected: Meteor.status().connected,
     meetingName: getMeetingName(),
-    learningDashboardAccessToken: LearningDashboardService.getLearningDashboardAccessToken(),
+    learningDashboardEnabled: isLearningDashboardEnabled(),
     openLearningDashboardUrl: LearningDashboardService.openLearningDashboardUrl,
     dynamicGuestPolicy,
   };

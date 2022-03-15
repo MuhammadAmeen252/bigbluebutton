@@ -4,6 +4,7 @@ import './index.css';
 import { IntlProvider } from 'react-intl';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { UserDetailsProvider } from './components/UserDetails/context';
 
 const RTL_LANGUAGES = ['ar', 'dv', 'fa', 'he'];
 
@@ -60,8 +61,10 @@ class Dashboard extends React.Component {
   setRtl() {
     const { intlLocale } = this.state;
 
-    if (RTL_LANGUAGES.includes(intlLocale)) {
+    if (RTL_LANGUAGES.includes(intlLocale.substring(0, 2))) {
       document.body.parentNode.setAttribute('dir', 'rtl');
+    } else {
+      document.body.parentNode.setAttribute('dir', 'ltr');
     }
   }
 
@@ -69,9 +72,11 @@ class Dashboard extends React.Component {
     const { intlLocale, intlMessages } = this.state;
 
     return (
-      <IntlProvider defaultLocale="en" locale={intlLocale} messages={intlMessages}>
-        <App />
-      </IntlProvider>
+      <UserDetailsProvider>
+        <IntlProvider defaultLocale="en" locale={intlLocale} messages={intlMessages}>
+          <App />
+        </IntlProvider>
+      </UserDetailsProvider>
     );
   }
 }

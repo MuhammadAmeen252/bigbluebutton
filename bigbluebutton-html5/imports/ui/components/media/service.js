@@ -1,14 +1,14 @@
 import Presentations from '/imports/api/presentations';
 import { isVideoBroadcasting } from '/imports/ui/components/screenshare/service';
 import { getVideoUrl } from '/imports/ui/components/external-video-player/service';
-import Auth from '/imports/ui/services/auth';
-import Users from '/imports/ui/local-collections/users-collection/users';
 import Settings from '/imports/ui/services/settings';
 import getFromUserSettings from '/imports/ui/services/users-settings';
+import { isExternalVideoEnabled, isScreenSharingEnabled } from '/imports/ui/services/features';
 import { ACTIONS } from '../layout/enums';
 
 const LAYOUT_CONFIG = Meteor.settings.public.layout;
 const KURENTO_CONFIG = Meteor.settings.public.kurento;
+const PRESENTATION_CONFIG = Meteor.settings.public.presentation;
 
 const getPresentationInfo = () => {
   const currentPresentation = Presentations.findOne({
@@ -20,22 +20,17 @@ const getPresentationInfo = () => {
   };
 };
 
-const isUserPresenter = () => Users.findOne({ userId: Auth.userID },
-  { fields: { presenter: 1 } }).presenter;
-
 function shouldShowWhiteboard() {
   return true;
 }
 
 function shouldShowScreenshare() {
   const { viewScreenshare } = Settings.dataSaving;
-  const enableScreensharing = getFromUserSettings('bbb_enable_screen_sharing', KURENTO_CONFIG.enableScreensharing);
-  return enableScreensharing && viewScreenshare && isVideoBroadcasting();
+  return isScreenSharingEnabled() && viewScreenshare && isVideoBroadcasting();
 }
 
 function shouldShowExternalVideo() {
-  const { enabled: enableExternalVideo } = Meteor.settings.public.externalVideoPlayer;
-  return enableExternalVideo && getVideoUrl();
+  return isExternalVideoEnabled() && getVideoUrl();
 }
 
 function shouldShowOverlay() {
@@ -48,13 +43,17 @@ const swapLayout = {
 };
 
 const setSwapLayout = (layoutContextDispatch) => {
-  swapLayout.value = getFromUserSettings('bbb_auto_swap_layout', LAYOUT_CONFIG.autoSwapLayout);
+  const hidePresentation = getFromUserSettings('bbb_hide_presentation', LAYOUT_CONFIG.hidePresentation);
+
+  swapLayout.value = getFromUserSettings('bbb_auto_swap_layout', LAYOUT_CONFIG.autoSwapLayout) || hidePresentation;
   swapLayout.tracker.changed();
 
-  layoutContextDispatch({
-    type: ACTIONS.SET_PRESENTATION_IS_OPEN,
-    value: !swapLayout.value,
-  });
+  if (!hidePresentation) {
+    layoutContextDispatch({
+      type: ACTIONS.SET_PRESENTATION_IS_OPEN,
+      value: !swapLayout.value,
+    });
+  }
 };
 
 const toggleSwapLayout = (layoutContextDispatch) => {
@@ -68,7 +67,12 @@ const toggleSwapLayout = (layoutContextDispatch) => {
   });
 };
 
-export const shouldEnableSwapLayout = () => !shouldShowScreenshare() && !shouldShowExternalVideo();
+export const shouldEnableSwapLayout = () => {
+  if (!PRESENTATION_CONFIG.oldMinimizeButton) {
+    return true;
+  }
+  return !shouldShowScreenshare() && !shouldShowExternalVideo();
+};
 
 export const getSwapLayout = () => {
   swapLayout.tracker.depend();
@@ -81,7 +85,6 @@ export default {
   shouldShowScreenshare,
   shouldShowExternalVideo,
   shouldShowOverlay,
-  isUserPresenter,
   isVideoBroadcasting,
   toggleSwapLayout,
   shouldEnableSwapLayout,
