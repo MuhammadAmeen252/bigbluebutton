@@ -209,6 +209,18 @@ const Row = styled.div`
   margin-bottom: 0.7rem;
 `;
 
+const Warning = styled.div`
+  color: ${colorDanger};
+  font-size: ${fontSizeSmall};
+`;
+
+const AutoOptioningRow = styled.input`
+  display: flex;
+  flex-flow: wrap;
+  flex-grow: 1;
+  justify-content: space-between;
+`;
+
 const Col = styled.div`
   display: flex;
   position: relative;
@@ -399,4 +411,6 @@ export default {
   Header,
   PollHideButton,
   PollCloseButton,
+  Warning,
+  AutoOptioningRow,
 };
