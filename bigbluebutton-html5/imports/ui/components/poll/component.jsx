@@ -631,8 +631,8 @@ class Poll extends Component {
     const questionsAndOptionsPlaceholder = intlMessages.questionAndOptionsPlaceholder;
     const hasQuestionError = (type === pollTypes.Response
       && questionAndOptions.length === 0 && error);
-    const hasOptionError = (autoOptioning && optList.length === 0);
-    const hasWarning = (autoOptioning && warning && error);
+    const hasOptionError = (autoOptioning && optList.length === 0 && error);
+    const hasWarning = (autoOptioning && warning);
     return (
       <div>
 

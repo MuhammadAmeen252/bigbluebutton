@@ -21,6 +21,7 @@ import {
   colorGrayLighter,
   colorGrayLightest,
   colorDanger,
+  colorWarning,
   colorHeading,
   colorPrimary,
   colorGrayDark,
@@ -210,11 +211,11 @@ const Row = styled.div`
 `;
 
 const Warning = styled.div`
-  color: ${colorDanger};
+  color: ${colorWarning};
   font-size: ${fontSizeSmall};
 `;
 
-const AutoOptioningRow = styled.input`
+const AutoOptioningRow = styled.div`
   display: flex;
   flex-flow: wrap;
   flex-grow: 1;
