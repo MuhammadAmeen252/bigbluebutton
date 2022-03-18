@@ -224,6 +224,7 @@ const POLL_OPTIONS_PLACEHOLDERS = [
   { val: intlMessages.d },
   { val: intlMessages.e },
 ];
+const MIN_OPTIONS_LENGTH = 2;
 
 const validateInput = (i) => {
   let _input = i;
@@ -267,13 +268,13 @@ class Poll extends Component {
   }
 
   componentDidUpdate() {
-    const { amIPresenter, layoutContextDispatch, sidebarContentPanel } = this.props;
+    const { amIPresenter, layoutContextDispatch } = this.props;
 
     if (Session.equals('resetPollPanel', true)) {
       this.handleBackClick();
     }
 
-    if (!amIPresenter && sidebarContentPanel === PANELS.POLL) {
+    if (!amIPresenter) {
       layoutContextDispatch({
         type: ACTIONS.SET_SIDEBAR_CONTENT_IS_OPEN,
         value: false,
@@ -551,19 +552,23 @@ class Poll extends Component {
               onChange={(e) => this.handleInputChange(e, i)}
               maxLength={MAX_INPUT_CHARS}
             />
-            <Styled.DeletePollOptionButton
-              styles={{ visibility: optList.length < 2 ? 'hidden' : 'block' }}
-              label={intl.formatMessage(intlMessages.delete)}
-              aria-describedby={`option-${i}`}
-              icon="delete"
-              data-test="deletePollOption"
-              hideLabel
-              circle
-              color="default"
-              onClick={() => {
-                this.handleRemoveOption(i);
-              }}
-            />
+            {
+               optList.length > MIN_OPTIONS_LENGTH && (
+               <Styled.DeletePollOptionButton
+                 label={intl.formatMessage(intlMessages.delete)}
+                 aria-describedby={`option-${i}`}
+                 icon="delete"
+                 data-test="deletePollOption"
+                 hideLabel
+                 circle
+                 color="default"
+                 onClick={() => {
+                   this.handleRemoveOption(i);
+                 }}
+               />
+               )
+            }
+
             <span className="sr-only" id={`option-${i}`}>
               {intl.formatMessage(intlMessages.deleteRespDesc,
                 { 0: (o.val || intl.formatMessage(intlMessages.emptyPollOpt)) })}
@@ -858,7 +863,7 @@ class Poll extends Component {
                           });
 
                           let err = null;
-                          if (type === pollTypes.Response && questionAndOptions.length === 0) {
+                          if (type === pollTypes.Response && question.length === 0) {
                             err = intl.formatMessage(intlMessages.questionErr);
                           }
                           if (!hasVal && type !== pollTypes.Response) {
@@ -932,7 +937,6 @@ class Poll extends Component {
     } = this.props;
 
     if (!currentSlide) return this.renderNoSlidePanel();
-
     if (isPolling || currentPoll) {
       return this.renderActivePollOptions();
     }
